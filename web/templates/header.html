@@ -1,0 +1,16 @@
+{{define "header"}}
+<header class="topbar">
+  <a href="/" class="brand">Forum</a>
+  <nav class="topbar-nav">
+    {{if .User}}
+      <span class="username">{{.User.Username}}</span>
+      <form action="/logout" method="POST" class="inline-form">
+        <button type="submit" class="link-btn">Log out</button>
+      </form>
+    {{else}}
+      <a href="/login">Log in</a>
+      <a href="/register" class="btn-accent">Register</a>
+    {{end}}
+  </nav>
+</header>
+{{end}}
