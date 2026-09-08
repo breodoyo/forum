@@ -240,4 +240,76 @@ input[type="password"]:focus {
   color: var(--ink-muted);
   text-align: center;
 }
+
+/* ---- Post feed ---- */
+.feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state {
+  color: var(--ink-muted);
+  padding: 2rem 0;
+}
+
+.post-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.post-card {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.post-card:first-child {
+  padding-top: 0;
+}
+
+.post-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.3rem;
+}
+.post-card h2 a {
+  color: var(--ink);
+}
+.post-card h2 a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.post-meta {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  margin: 0 0 0.6rem;
+}
+.post-meta a {
+  color: var(--ink-muted);
+}
+.post-meta a:hover {
+  color: var(--accent);
+}
+
+.post-excerpt {
+  margin: 0 0 0.75rem;
+  color: var(--ink);
+}
+
+.post-footer {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.vote-count,
+.comment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 }

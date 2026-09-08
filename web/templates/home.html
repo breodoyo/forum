@@ -1,0 +1,34 @@
+{{define "title"}}{{if .ActiveCategoryName}}{{.ActiveCategoryName}} · {{end}}Forum{{end}}
+
+{{define "content"}}
+<div class="feed-header">
+  <h1>{{if .ActiveCategoryName}}{{.ActiveCategoryName}}{{else}}All posts{{end}}</h1>
+  {{if .User}}
+    <a href="/posts/new" class="btn-accent">New post</a>
+  {{end}}
+</div>
+
+{{if not .Posts}}
+  <p class="empty-state">
+    No posts yet.
+    {{if .User}}<a href="/posts/new">Start the first thread</a>.{{else}}<a href="/login">Log in</a> to start one.{{end}}
+  </p>
+{{else}}
+  <ul class="post-list">
+    {{range .Posts}}
+      <li class="post-card">
+        <h2><a href="/posts/{{.ID}}">{{.Title}}</a></h2>
+        <p class="post-meta">
+          by {{.Author.Username}} · <a href="/?category={{.Category.ID}}">{{.Category.Name}}</a> · {{.CreatedAt}}
+        </p>
+        <p class="post-excerpt">{{.Excerpt}}</p>
+        <div class="post-footer">
+          <span class="vote-count">▲ {{.LikeCount}}</span>
+          <span class="vote-count">▼ {{.DislikeCount}}</span>
+          <span class="comment-count">💬 {{.CommentCount}}</span>
+        </div>
+      </li>
+    {{end}}
+  </ul>
+{{end}}
+{{end}}
