@@ -312,4 +312,86 @@ input[type="password"]:focus {
   gap: 0.25rem;
 }
 
+/* ---- Post detail ---- */
+.post-detail {
+  margin-bottom: 2rem;
+}
+.post-detail h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.4rem;
+}
+.post-body {
+  margin: 1rem 0;
+  white-space: pre-wrap;
+}
+
+.reaction-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.react-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+.react-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.react-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.react-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Comments ---- */
+.comments h2 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.comment-form {
+  margin-bottom: 1.5rem;
+}
+.comment-form textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  resize: vertical;
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.comment {
+  padding: 0.9rem 0 0.9rem 1rem;
+  border-left: 2px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+.comment-meta {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.3rem;
+}
+.comment-body {
+  margin: 0 0 0.5rem;
+}
+
 }
