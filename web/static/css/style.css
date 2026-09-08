@@ -176,4 +176,68 @@ textarea:focus-visible {
 /* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+
+  /* ---- Auth pages (login/register) ---- */
+.auth-page {
+  max-width: 360px;
+  margin: 3rem auto 0;
+}
+
+.auth-page h1 {
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-color: var(--accent);
+}
+
+.btn-block {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: var(--radius);
+  border: none;
+}
+
+.error-message {
+  background: #FBEAE9;
+  border: 1px solid var(--down);
+  color: var(--down);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.auth-switch {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
 }
