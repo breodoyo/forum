@@ -425,4 +425,71 @@ input[type="password"]:focus {
   color: var(--ink);
 }
 
+/* ---- Responsive polish ---- */
+
+@media (max-width: 720px) {
+  .layout {
+    padding: 1.25rem 1rem;
+    gap: 1.5rem;
+  }
+
+  .topbar {
+    padding: 0.6rem 1rem;
+  }
+
+  .brand {
+    font-size: 1.1rem;
+  }
+
+  .topbar-nav {
+    gap: 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .feed-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .feed-header .btn-accent {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .auth-page {
+    margin-top: 1.5rem;
+  }
+
+  .post-detail h1 {
+    font-size: 1.3rem;
+  }
+
+  .reaction-bar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  body {
+    font-size: 15px;
+  }
+
+  .layout {
+    padding: 1rem 0.75rem;
+  }
+
+  .topbar-nav a,
+  .topbar-nav .link-btn {
+    font-size: 0.85rem;
+  }
+
+  .username {
+    display: none; /* keep the logout control, drop the name label to save space */
+  }
+
+  .comment {
+    padding-left: 0.6rem;
+  }
+}
+
 }
