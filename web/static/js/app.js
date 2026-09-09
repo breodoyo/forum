@@ -1,5 +1,4 @@
 
-
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.react-btn');
   if (!btn || btn.disabled) return;
@@ -16,15 +15,18 @@ document.addEventListener('click', async (e) => {
         ? await api.reactToPost(targetId, reaction)
         : await api.reactToComment(targetId, reaction);
 
-    // ASSUMPTION: result is { likeCount, dislikeCount }. Adjust the two lines
-    // below if the real backend response uses different field names.
     const likeSpan = bar.querySelector('.like-count');
     const dislikeSpan = bar.querySelector('.dislike-count');
-    if (likeSpan && result.likeCount !== undefined) likeSpan.textContent = result.likeCount;
-    if (dislikeSpan && result.dislikeCount !== undefined) dislikeSpan.textContent = result.dislikeCount;
+    if (likeSpan && result.likes !== undefined) likeSpan.textContent = result.likes;
+    if (dislikeSpan && result.dislikes !== undefined) dislikeSpan.textContent = result.dislikes;
 
+    // Reflect the server's state: highlight the active button, or clear
+    // both when the reaction was toggled off.
     bar.querySelectorAll('.react-btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
+    if (result.user_reaction === 'like' || result.user_reaction === 'dislike') {
+      const active = bar.querySelector(`.react-btn[data-reaction="${result.user_reaction}"]`);
+      if (active) active.classList.add('active');
+    }
   } catch (err) {
     alert(err.message || 'Could not save your reaction. Please try again.');
   } finally {
@@ -46,7 +48,75 @@ document.addEventListener('submit', async (e) => {
     await handleNewPostSubmit(newPostForm);
     return;
   }
+
+  const loginForm = e.target.closest('#login-form');
+  if (loginForm) {
+    e.preventDefault();
+    await handleLoginSubmit(loginForm);
+    return;
+  }
+
+  const registerForm = e.target.closest('#register-form');
+  if (registerForm) {
+    e.preventDefault();
+    await handleRegisterSubmit(registerForm);
+    return;
+  }
+
+  const logoutForm = e.target.closest('#logout-form');
+  if (logoutForm) {
+    e.preventDefault();
+    try {
+      await api.logout();
+    } catch (_) {
+      // ignore — clear the page either way
+    }
+    window.location.href = '/';
+  }
 });
+
+function showFormError(form, message) {
+  const errorEl = form.querySelector('.form-error') || document.querySelector('.form-error');
+  if (errorEl) {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+  } else {
+    alert(message);
+  }
+}
+
+async function handleLoginSubmit(form) {
+  const email = form.querySelector('input[name="email"]').value.trim();
+  const password = form.querySelector('input[name="password"]').value;
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  try {
+    await api.login(email, password);
+    window.location.href = '/';
+  } catch (err) {
+    showFormError(form, err.message || 'Could not log in. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+async function handleRegisterSubmit(form) {
+  const email = form.querySelector('input[name="email"]').value.trim();
+  const username = form.querySelector('input[name="username"]').value.trim();
+  const password = form.querySelector('input[name="password"]').value;
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  try {
+    await api.register(email, username, password);
+    window.location.href = '/';
+  } catch (err) {
+    showFormError(form, err.message || 'Could not register. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
 
 async function handleCommentSubmit(form) {
   const postId = form.dataset.postId;
@@ -74,12 +144,17 @@ async function handleNewPostSubmit(form) {
 
   const title = form.querySelector('#post-title').value.trim();
   const body = form.querySelector('#post-body').value.trim();
-  const categoryIds = Array.from(
-    form.querySelectorAll('input[name="categoryIds"]:checked')
+  const categories = Array.from(
+    form.querySelectorAll('input[name="categories"]:checked')
   ).map((input) => input.value);
 
   if (!title || !body) {
     errorEl.textContent = 'Title and body are required.';
+    errorEl.hidden = false;
+    return;
+  }
+  if (categories.length === 0) {
+    errorEl.textContent = 'Pick at least one category.';
     errorEl.hidden = false;
     return;
   }
@@ -88,11 +163,9 @@ async function handleNewPostSubmit(form) {
   submitBtn.disabled = true;
 
   try {
-    // ASSUMPTION: response includes the new post's id so we can redirect there.
-    // Adjust the field name below once confirmed against internal/posts.Create.
-    const created = await api.createPost(title, body, categoryIds);
+    const created = await api.createPost(title, body, categories);
     if (created && created.id) {
-      window.location.href = `/posts/${created.id}`;
+      window.location.href = `/post/${created.id}`;
     } else {
       window.location.href = '/';
     }
@@ -116,14 +189,13 @@ function appendComment(comment) {
   li.className = 'comment';
   li.dataset.commentId = comment.id;
 
-  // ASSUMPTION: comment.author.username and comment.createdAt exist —
-  // adjust if internal/comments returns different field names.
+  const when = comment.created_at ? new Date(comment.created_at).toLocaleString() : 'just now';
   li.innerHTML = `
-    <p class="comment-meta">${escapeHtml(comment.author?.username ?? 'You')} · ${escapeHtml(comment.createdAt ?? 'just now')}</p>
+    <p class="comment-meta">${escapeHtml(comment.user ?? 'You')} · ${escapeHtml(when)}</p>
     <p class="comment-body">${escapeHtml(comment.body)}</p>
-    <div class="reaction-bar" data-target-type="comment" data-target-id="${comment.id}">
-      <button class="react-btn" data-reaction="like">▲ <span class="like-count">0</span></button>
-      <button class="react-btn" data-reaction="dislike">▼ <span class="dislike-count">0</span></button>
+    <div class="reaction-bar" data-target-type="comment" data-target-id="${escapeHtml(comment.id)}">
+      <button class="react-btn" data-reaction="like">▲ <span class="like-count">${comment.likes ?? 0}</span></button>
+      <button class="react-btn" data-reaction="dislike">▼ <span class="dislike-count">${comment.dislikes ?? 0}</span></button>
     </div>
   `;
   list.appendChild(li);
@@ -131,6 +203,6 @@ function appendComment(comment) {
 
 function escapeHtml(str) {
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = String(str);
   return div.innerHTML;
 }

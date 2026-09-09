@@ -1,5 +1,4 @@
 
-
 const api = {
   async request(path, { method = 'GET', body } = {}) {
     const res = await fetch(path, {
@@ -13,8 +12,6 @@ const api = {
       let message = `Request failed (${res.status})`;
       try {
         const errBody = await res.json();
-        // ASSUMPTION: error responses look like { error: "message" } —
-        // confirm the real shape against internal/httputil.Error and adjust if needed.
         if (errBody && errBody.error) message = errBody.error;
       } catch (_) {
         // response wasn't JSON — keep the generic message
@@ -26,9 +23,22 @@ const api = {
     return res.json();
   },
 
+  // ---- Auth ----
+  login(email, password) {
+    return api.request('/api/login', { method: 'POST', body: { email, password } });
+  },
+
+  register(email, username, password) {
+    return api.request('/api/register', { method: 'POST', body: { email, username, password } });
+  },
+
+  logout() {
+    return api.request('/api/logout', { method: 'POST' });
+  },
+
   // ---- Reactions ----
-  // ASSUMPTION: both endpoints return the updated counts, e.g. { likeCount, dislikeCount }.
-  // Confirm against internal/reactions and adjust the field names in app.js if different.
+  // Both endpoints return { likes, dislikes, user_reaction } where
+  // user_reaction is "like", "dislike", or "" when the reaction was toggled off.
   reactToPost(postId, reaction) {
     return api.request(`/api/posts/${postId}/react`, {
       method: 'POST',
@@ -44,9 +54,7 @@ const api = {
   },
 
   // ---- Comments ----
-  // ASSUMPTION: returns the created comment, e.g.
-  // { id, body, createdAt, author: { username }, likeCount, dislikeCount }.
-  // Confirm against internal/comments and adjust renderComment() in app.js if different.
+  // Returns the created comment: { id, post_id, user, body, created_at, likes, dislikes }.
   addComment(postId, body) {
     return api.request(`/api/posts/${postId}/comments`, {
       method: 'POST',
@@ -55,13 +63,12 @@ const api = {
   },
 
   // ---- Posts ----
-  // ASSUMPTION: expects { title, body, categoryIds } and returns the created post
-  // (at minimum an { id } so we know where to redirect). Confirm the request/response
-  // shape against internal/posts.Create and adjust here if different.
-  createPost(title, body, categoryIds) {
+  // Expects { title, body, categories } where categories is a list of
+  // category names; returns { id } on success.
+  createPost(title, body, categories) {
     return api.request('/api/posts', {
       method: 'POST',
-      body: { title, body, categoryIds },
+      body: { title, body, categories },
     });
   },
 };
