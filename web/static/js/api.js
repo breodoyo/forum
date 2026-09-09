@@ -1,7 +1,4 @@
-/* Destination in repo: web/static/js/api.js
-   Thin wrapper around fetch() for the /api/* JSON endpoints.
-   'credentials: same-origin' ensures the session cookie set by the backend
-   (auth.Middleware) is sent with every request. */
+
 
 const api = {
   async request(path, { method = 'GET', body } = {}) {
@@ -29,6 +26,9 @@ const api = {
     return res.json();
   },
 
+  // ---- Reactions ----
+  // ASSUMPTION: both endpoints return the updated counts, e.g. { likeCount, dislikeCount }.
+  // Confirm against internal/reactions and adjust the field names in app.js if different.
   reactToPost(postId, reaction) {
     return api.request(`/api/posts/${postId}/react`, {
       method: 'POST',
@@ -51,6 +51,17 @@ const api = {
     return api.request(`/api/posts/${postId}/comments`, {
       method: 'POST',
       body: { body },
+    });
+  },
+
+  // ---- Posts ----
+  // ASSUMPTION: expects { title, body, categoryIds } and returns the created post
+  // (at minimum an { id } so we know where to redirect). Confirm the request/response
+  // shape against internal/posts.Create and adjust here if different.
+  createPost(title, body, categoryIds) {
+    return api.request('/api/posts', {
+      method: 'POST',
+      body: { title, body, categoryIds },
     });
   },
 };

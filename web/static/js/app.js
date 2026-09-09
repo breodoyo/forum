@@ -1,4 +1,5 @@
 
+
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.react-btn');
   if (!btn || btn.disabled) return;
@@ -32,10 +33,22 @@ document.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('submit', async (e) => {
-  const form = e.target.closest('.comment-form');
-  if (!form) return;
-  e.preventDefault();
+  const commentForm = e.target.closest('.comment-form');
+  if (commentForm) {
+    e.preventDefault();
+    await handleCommentSubmit(commentForm);
+    return;
+  }
 
+  const newPostForm = e.target.closest('#new-post-form');
+  if (newPostForm) {
+    e.preventDefault();
+    await handleNewPostSubmit(newPostForm);
+    return;
+  }
+});
+
+async function handleCommentSubmit(form) {
   const postId = form.dataset.postId;
   const textarea = form.querySelector('textarea[name="body"]');
   const body = textarea.value.trim();
@@ -53,7 +66,43 @@ document.addEventListener('submit', async (e) => {
   } finally {
     submitBtn.disabled = false;
   }
-});
+}
+
+async function handleNewPostSubmit(form) {
+  const errorEl = document.getElementById('new-post-error');
+  errorEl.hidden = true;
+
+  const title = form.querySelector('#post-title').value.trim();
+  const body = form.querySelector('#post-body').value.trim();
+  const categoryIds = Array.from(
+    form.querySelectorAll('input[name="categoryIds"]:checked')
+  ).map((input) => input.value);
+
+  if (!title || !body) {
+    errorEl.textContent = 'Title and body are required.';
+    errorEl.hidden = false;
+    return;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+
+  try {
+    // ASSUMPTION: response includes the new post's id so we can redirect there.
+    // Adjust the field name below once confirmed against internal/posts.Create.
+    const created = await api.createPost(title, body, categoryIds);
+    if (created && created.id) {
+      window.location.href = `/posts/${created.id}`;
+    } else {
+      window.location.href = '/';
+    }
+  } catch (err) {
+    errorEl.textContent = err.message || 'Could not publish your post. Please try again.';
+    errorEl.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
 
 function appendComment(comment) {
   const list = document.querySelector('.comment-list');
