@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gofrs/uuid"
+
 	"forum/internal/auth"
 	"forum/internal/httputil"
 )
@@ -21,7 +23,7 @@ func NewService(db *sql.DB) *Service {
 }
 
 type reactRequest struct {
-	Value int `json:"value"` // 1 = like, -1 = dislike
+	Type string `json:"type"` // "like" or "dislike"
 }
 
 // ReactToPost handles POST /api/posts/{id}/react (auth required).
@@ -42,8 +44,8 @@ func (s *Service) react(w http.ResponseWriter, r *http.Request, column, targetID
 		httputil.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Value != 1 && req.Value != -1 {
-		httputil.Error(w, http.StatusBadRequest, "value must be 1 (like) or -1 (dislike)")
+	if req.Type != "like" && req.Type != "dislike" {
+		httputil.Error(w, http.StatusBadRequest, `type must be "like" or "dislike"`)
 		return
 	}
 
@@ -61,41 +63,57 @@ func (s *Service) react(w http.ResponseWriter, r *http.Request, column, targetID
 		return
 	}
 
-	var existing int
+	var existing string
 	err := s.db.QueryRow(
-		`SELECT value FROM reactions WHERE user_id = ? AND `+column+` = ?`, user.ID, targetID,
+		`SELECT type FROM reactions WHERE user_id = ? AND `+column+` = ?`, user.ID, targetID,
 	).Scan(&existing)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
+		id, err := uuid.NewV4()
+		if err != nil {
+			httputil.ServerError(w, err)
+			return
+		}
 		_, err = s.db.Exec(
-			`INSERT INTO reactions (user_id, `+column+`, value) VALUES (?, ?, ?)`,
-			user.ID, targetID, req.Value,
+			`INSERT INTO reactions (id, user_id, `+column+`, type) VALUES (?, ?, ?, ?)`,
+			id.String(), user.ID, targetID, req.Type,
 		)
+		if err != nil {
+			httputil.ServerError(w, err)
+			return
+		}
 	case err != nil:
 		httputil.ServerError(w, err)
 		return
-	case existing == req.Value:
+	case existing == req.Type:
 		// Same reaction submitted again: clear it.
-		_, err = s.db.Exec(`DELETE FROM reactions WHERE user_id = ? AND `+column+` = ?`, user.ID, targetID)
+		if _, err := s.db.Exec(`DELETE FROM reactions WHERE user_id = ? AND `+column+` = ?`, user.ID, targetID); err != nil {
+			httputil.ServerError(w, err)
+			return
+		}
+		req.Type = "" // toggled off
 	default:
 		// Opposite reaction: flip it.
-		_, err = s.db.Exec(`UPDATE reactions SET value = ? WHERE user_id = ? AND `+column+` = ?`,
-			req.Value, user.ID, targetID)
-	}
-	if err != nil {
-		httputil.ServerError(w, err)
-		return
+		if _, err := s.db.Exec(`UPDATE reactions SET type = ? WHERE user_id = ? AND `+column+` = ?`,
+			req.Type, user.ID, targetID); err != nil {
+			httputil.ServerError(w, err)
+			return
+		}
 	}
 
 	var likes, dislikes int
 	if err := s.db.QueryRow(
-		`SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0) FROM reactions WHERE `+column+` = ?`,
+		`SELECT COALESCE(SUM(type = 'like'), 0), COALESCE(SUM(type = 'dislike'), 0) FROM reactions WHERE `+column+` = ?`,
 		targetID,
 	).Scan(&likes, &dislikes); err != nil {
 		httputil.ServerError(w, err)
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, map[string]int{"likes": likes, "dislikes": dislikes})
+	httputil.JSON(w, http.StatusOK, map[string]any{
+		"likes":         likes,
+		"dislikes":      dislikes,
+		"user_reaction": req.Type,
+	})
 }

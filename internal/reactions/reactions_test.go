@@ -39,7 +39,7 @@ func call(authSvc *auth.Service, cookie *http.Cookie, method, path string, body 
 	req := httptest.NewRequest(method, path, bytes.NewReader(body))
 	req.AddCookie(cookie)
 	rec := httptest.NewRecorder()
-	authSvc.Middleware(h).ServeHTTP(rec, req)
+	authSvc.RequireAuth(h).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -47,20 +47,20 @@ func call(authSvc *auth.Service, cookie *http.Cookie, method, path string, body 
 // it, and disliking after a like flips it rather than stacking.
 func TestToggleLikeDislike(t *testing.T) {
 	conn := newTestDB(t)
-	authSvc := auth.NewService(conn)
-	postSvc := posts.NewService(conn)
+	authSvc := auth.New(conn)
+	postSvc := posts.New(conn)
 	reactSvc := reactions.NewService(conn)
 
 	cookie := register(t, authSvc, "alice")
 
-	createBody, _ := json.Marshal(map[string]any{"title": "T", "body": "B", "category_ids": []int{1}})
+	createBody, _ := json.Marshal(map[string]any{"title": "T", "body": "B", "categories": []string{"General"}})
 	rec := call(authSvc, cookie, "POST", "/api/posts", createBody, postSvc.Create)
 	var created map[string]string
 	json.Unmarshal(rec.Body.Bytes(), &created)
 	postID := created["id"]
 
-	react := func(value int) map[string]int {
-		body, _ := json.Marshal(map[string]int{"value": value})
+	react := func(reaction string) map[string]int {
+		body, _ := json.Marshal(map[string]string{"type": reaction})
 		rec := call(authSvc, cookie, "POST", "/api/posts/"+postID+"/react", body,
 			func(w http.ResponseWriter, r *http.Request) { reactSvc.ReactToPost(w, r, postID) })
 		if rec.Code != http.StatusOK {
@@ -71,16 +71,16 @@ func TestToggleLikeDislike(t *testing.T) {
 		return counts
 	}
 
-	if c := react(1); c["likes"] != 1 || c["dislikes"] != 0 {
+	if c := react("like"); c["likes"] != 1 || c["dislikes"] != 0 {
 		t.Fatalf("after like: expected 1/0, got %+v", c)
 	}
-	if c := react(1); c["likes"] != 0 || c["dislikes"] != 0 {
+	if c := react("like"); c["likes"] != 0 || c["dislikes"] != 0 {
 		t.Fatalf("after repeating like (should clear): expected 0/0, got %+v", c)
 	}
-	if c := react(-1); c["likes"] != 0 || c["dislikes"] != 1 {
+	if c := react("dislike"); c["likes"] != 0 || c["dislikes"] != 1 {
 		t.Fatalf("after dislike: expected 0/1, got %+v", c)
 	}
-	if c := react(1); c["likes"] != 1 || c["dislikes"] != 0 {
+	if c := react("like"); c["likes"] != 1 || c["dislikes"] != 0 {
 		t.Fatalf("after flipping to like: expected 1/0, got %+v", c)
 	}
 }
