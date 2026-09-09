@@ -1,0 +1,19 @@
+{{define "sidebar"}}
+<aside class="sidebar">
+  <h2>Categories</h2>
+  <ul class="sidebar-list">
+    <li><a href="/" class="{{if not .ActiveCategory}}active{{end}}">All posts</a></li>
+    {{range .Categories}}
+      <li><a href="/?category={{.ID}}" class="{{if eq $.ActiveCategory .ID}}active{{end}}">{{.Name}}</a></li>
+    {{end}}
+  </ul>
+
+  {{if .User}}
+    <h2 style="margin-top:1.5rem;">My posts</h2>
+    <ul class="sidebar-list">
+      <li><a href="/?filter=created">Created by me</a></li>
+      <li><a href="/?filter=liked">Liked posts</a></li>
+    </ul>
+  {{end}}
+</aside>
+{{end}}

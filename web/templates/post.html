@@ -1,0 +1,55 @@
+{{define "title"}}{{.Post.Title}} · Forum{{end}}
+
+{{define "content"}}
+<article class="post-detail" data-post-id="{{.Post.ID}}">
+  <h1>{{.Post.Title}}</h1>
+  <p class="post-meta">
+    by {{.Post.Author.Username}} · <a href="/?category={{.Post.Category.ID}}">{{.Post.Category.Name}}</a> · {{.Post.CreatedAt}}
+  </p>
+  <div class="post-body">{{.Post.Body}}</div>
+
+  <div class="reaction-bar" data-target-type="post" data-target-id="{{.Post.ID}}">
+    <button class="react-btn" data-reaction="like" {{if not $.User}}disabled{{end}}>
+      ▲ <span class="like-count">{{.Post.LikeCount}}</span>
+    </button>
+    <button class="react-btn" data-reaction="dislike" {{if not $.User}}disabled{{end}}>
+      ▼ <span class="dislike-count">{{.Post.DislikeCount}}</span>
+    </button>
+  </div>
+</article>
+
+<section class="comments">
+  <h2>Comments ({{len .Comments}})</h2>
+
+  {{if .User}}
+    <form class="comment-form" data-post-id="{{.Post.ID}}">
+      <div class="form-group">
+        <label for="comment-body">Add a comment</label>
+        <textarea id="comment-body" name="body" rows="3" required></textarea>
+      </div>
+      <button type="submit" class="btn-accent">Post comment</button>
+    </form>
+  {{else}}
+    <p class="empty-state"><a href="/login">Log in</a> to join the discussion.</p>
+  {{end}}
+
+  <ul class="comment-list">
+    {{range .Comments}}
+      <li class="comment" data-comment-id="{{.ID}}">
+        <p class="comment-meta">{{.Author.Username}} · {{.CreatedAt}}</p>
+        <p class="comment-body">{{.Body}}</p>
+        <div class="reaction-bar" data-target-type="comment" data-target-id="{{.ID}}">
+          <button class="react-btn" data-reaction="like" {{if not $.User}}disabled{{end}}>
+            ▲ <span class="like-count">{{.LikeCount}}</span>
+          </button>
+          <button class="react-btn" data-reaction="dislike" {{if not $.User}}disabled{{end}}>
+            ▼ <span class="dislike-count">{{.DislikeCount}}</span>
+          </button>
+        </div>
+      </li>
+    {{else}}
+      <li class="empty-state">No comments yet — be the first to reply.</li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
