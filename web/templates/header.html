@@ -1,16 +1,37 @@
 {{define "header"}}
-<header class="topbar">
-  <a href="/" class="brand">Forum</a>
-  <nav class="topbar-nav">
-    {{if .User}}
-      <span class="username">{{.User.Username}}</span>
-      <form action="/logout" method="POST" class="inline-form">
-        <button type="submit" class="link-btn">Log out</button>
-      </form>
-    {{else}}
-      <a href="/login">Log in</a>
-      <a href="/register" class="btn-accent">Register</a>
-    {{end}}
-  </nav>
+<header class="forum-header">
+  <div class="header-inner">
+    <div class="header-brand-group">
+      <a href="/" class="brand-logo">
+        <span class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </span>
+        <span class="brand-text">Forum</span>
+      </a>
+      <span class="brand-badge">Zone01</span>
+    </div>
+
+    <div class="header-actions">
+      {{if .User}}
+        <!-- Authenticated State -->
+        <a href="/post/new" class="btn btn-primary btn-sm">+ New Post</a>
+        <div class="user-profile-menu">
+          <div class="user-avatar-pill">
+            <div class="avatar-circle">{{slice .User.Username 0 1}}</div>
+            <span class="user-name">{{.User.Username}}</span>
+          </div>
+          <form id="logout-form" method="POST" action="/api/logout" class="inline-form">
+            <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+          </form>
+        </div>
+      {{else}}
+        <!-- Guest State -->
+        <a href="/login" class="btn btn-ghost btn-sm">Log in</a>
+        <a href="/register" class="btn btn-primary btn-sm">Register</a>
+      {{end}}
+    </div>
+  </div>
 </header>
 {{end}}
