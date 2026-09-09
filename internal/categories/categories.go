@@ -31,6 +31,12 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(cats)
 }
 
+// ListData returns all categories for use by server-rendered pages and
+// other services.
+func (s *Service) ListData() ([]internal.Category, error) {
+	return s.listAll()
+}
+
 // listAll is the internal helper other services (e.g. posts) can call
 // to resolve category rows without going through HTTP.
 func (s *Service) listAll() ([]internal.Category, error) {
