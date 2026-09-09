@@ -13,14 +13,15 @@ import (
 )
 
 type Comment struct {
-	ID        string    `json:"id"`
-	PostID    string    `json:"post_id"`
-	UserID    string    `json:"user_id"`
-	Username  string    `json:"username"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	Likes     int       `json:"likes"`
-	Dislikes  int       `json:"dislikes"`
+	ID           string    `json:"id"`
+	PostID       string    `json:"post_id"`
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"user"`
+	Content      string    `json:"body"`
+	CreatedAt    time.Time `json:"created_at"`
+	Likes        int       `json:"likes"`
+	Dislikes     int       `json:"dislikes"`
+	UserReaction string    `json:"user_reaction"` // "like", "dislike", or ""
 }
 
 type Service struct {
@@ -32,7 +33,7 @@ func New(db *sql.DB) *Service {
 }
 
 type CreateRequest struct {
-	Content string `json:"content"`
+	Content string `json:"body"`
 }
 
 func (s *Service) Create(w http.ResponseWriter, r *http.Request, postID string) {
@@ -80,16 +81,16 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request, postID string) 
 	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"id": id.String()})
 }
 
-// ListByPost returns every comment on a post, visible to guests and registered users alike.
-func (s *Service) ListByPost(w http.ResponseWriter, r *http.Request, postID string) {
+// ListByPostData returns every comment on a post, hydrated with reaction
+// counts and the current user's own reaction.
+func (s *Service) ListByPostData(postID, currentUserID string) ([]Comment, error) {
 	rows, err := s.DB.Query(`
 		SELECT c.id, c.post_id, c.user_id, u.username, c.content, c.created_at
 		FROM comments c JOIN users u ON u.id = c.user_id
 		WHERE c.post_id = ?
 		ORDER BY c.created_at ASC`, postID)
 	if err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -97,20 +98,46 @@ func (s *Service) ListByPost(w http.ResponseWriter, r *http.Request, postID stri
 	for rows.Next() {
 		var c Comment
 		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Username, &c.Content, &c.CreatedAt); err != nil {
-			httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-			return
+			return nil, err
 		}
 		result = append(result, c)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
+		return nil, err
 	}
 
 	for i := range result {
-		s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE comment_id = ? AND type = 'like'`, result[i].ID).Scan(&result[i].Likes)
-		s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE comment_id = ? AND type = 'dislike'`, result[i].ID).Scan(&result[i].Dislikes)
+		s.hydrate(&result[i], currentUserID)
+	}
+	return result, nil
+}
+
+// ListByPost handles GET /api/posts/{id}/comments. Public — guests see counts but no user_reaction.
+func (s *Service) ListByPost(w http.ResponseWriter, r *http.Request, postID string) {
+	var currentUserID string
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		currentUserID = user.ID
 	}
 
+	result, err := s.ListByPostData(postID, currentUserID)
+	if err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 	httputil.WriteJSON(w, http.StatusOK, result)
+}
+
+// hydrate fills in computed fields for one comment.
+func (s *Service) hydrate(c *Comment, currentUserID string) {
+	s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE comment_id = ? AND type = 'like'`, c.ID).Scan(&c.Likes)
+	s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE comment_id = ? AND type = 'dislike'`, c.ID).Scan(&c.Dislikes)
+	if currentUserID == "" {
+		return
+	}
+	var reaction sql.NullString
+	if err := s.DB.QueryRow(
+		`SELECT type FROM reactions WHERE user_id = ? AND comment_id = ?`, currentUserID, c.ID,
+	).Scan(&reaction); err == nil {
+		c.UserReaction = reaction.String
+	}
 }
