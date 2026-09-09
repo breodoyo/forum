@@ -1,6 +1,6 @@
 // Command server is the forum's HTTP entrypoint: it wires the SQLite
-// database, all feature services, and routes, then serves the API plus
-// the static frontend.
+// database, all feature services, page templates, and routes, then
+// serves the API plus the server-rendered frontend.
 package main
 
 import (
@@ -15,6 +15,7 @@ import (
 	"forum/internal/httputil"
 	"forum/internal/posts"
 	"forum/internal/reactions"
+	"forum/internal/render"
 )
 
 func main() {
@@ -29,6 +30,10 @@ func main() {
 	}
 	defer conn.Close()
 
+	if err := render.Load(); err != nil {
+		log.Fatalf("loading templates: %v", err)
+	}
+
 	authSvc := auth.NewService(conn)
 	catSvc := categories.NewService(conn)
 	postSvc := posts.NewService(conn)
@@ -37,7 +42,24 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// -- auth --
+	// -- pages (server-rendered HTML) --
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		render.Page(w, "home", nil)
+	})
+	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+		render.Page(w, "login", nil)
+	})
+	mux.HandleFunc("GET /register", func(w http.ResponseWriter, r *http.Request) {
+		render.Page(w, "register", nil)
+	})
+	mux.HandleFunc("GET /posts/{id}", func(w http.ResponseWriter, r *http.Request) {
+		render.Page(w, "post", nil)
+	})
+
+	// -- static assets --
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static"))))
+
+	// -- auth (JSON API) --
 	mux.HandleFunc("POST /api/register", authSvc.Register)
 	mux.HandleFunc("POST /api/login", authSvc.Login)
 	mux.HandleFunc("POST /api/logout", authSvc.Logout)
@@ -70,13 +92,17 @@ func main() {
 	}))
 
 	// Catch-all for unmatched /api/* routes, so clients get a JSON 404
-	// instead of falling through to the static file server.
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+	// instead of falling through to the page/static handlers. Methods
+	// must be listed explicitly: an unqualified "/api/" pattern is
+	// ambiguous against "GET /" (Go's ServeMux can't tell which is
+	// more specific for a GET request) and panics at startup.
+	apiNotFound := func(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, http.StatusNotFound, "not found")
-	})
-
-	// -- static frontend --
-	mux.Handle("/", http.FileServer(http.Dir("./web/static")))
+	}
+	mux.HandleFunc("GET /api/", apiNotFound)
+	mux.HandleFunc("POST /api/", apiNotFound)
+	mux.HandleFunc("PUT /api/", apiNotFound)
+	mux.HandleFunc("DELETE /api/", apiNotFound)
 
 	handler := authSvc.Middleware(mux)
 
@@ -102,4 +128,3 @@ func dirOf(path string) string {
 	}
 	return "."
 }
-
