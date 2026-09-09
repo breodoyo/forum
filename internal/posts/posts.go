@@ -2,6 +2,7 @@ package posts
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -13,15 +14,19 @@ import (
 )
 
 type Post struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	Username   string    `json:"username"`
-	Title      string    `json:"title"`
-	Content    string    `json:"content"`
-	CreatedAt  time.Time `json:"created_at"`
-	Categories []string  `json:"categories"`
-	Likes      int       `json:"likes"`
-	Dislikes   int       `json:"dislikes"`
+	ID             string    `json:"id"`
+	UserID         string    `json:"user_id"`
+	Username       string    `json:"username"`
+	Title          string    `json:"title"`
+	Content        string    `json:"body"`
+	CreatedAt      time.Time `json:"created_at"`
+	Categories     []string  `json:"categories"`
+	Likes          int       `json:"likes"`
+	Dislikes       int       `json:"dislikes"`
+	UserReaction   string    `json:"user_reaction"` // "like", "dislike", or ""
+	CommentCount   int       `json:"comment_count"`
+	Snippet        string    `json:"snippet,omitempty"`
+	CreatedAtHuman string    `json:"created_at_human,omitempty"`
 }
 
 type Service struct {
@@ -32,11 +37,15 @@ func New(db *sql.DB) *Service {
 	return &Service{DB: db}
 }
 
-//Create 
+// ErrUnauthorized is returned by ListPosts when a login-only filter is
+// requested without a session.
+var ErrUnauthorized = errors.New("authentication required for this filter")
+
+//Create
 
 type CreateRequest struct {
 	Title      string   `json:"title"`
-	Content    string   `json:"content"`
+	Content    string   `json:"body"`
 	Categories []string `json:"categories"`
 }
 
@@ -129,20 +138,21 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"id": id.String()})
 }
 
-// List returns posts, optionally filtered by: category, filter-created, filter-liked
-
-func (s *Service) List(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	category := strings.TrimSpace(q.Get("category"))
-	filter := strings.TrimSpace(q.Get("filter")) // "created" | "liked"
-
-	var currentUserID string
-	if user, ok := auth.UserFromContext(r.Context()); ok {
-		currentUserID = user.ID
+// ListPosts returns posts, optionally filtered by category name and by
+// filter ("created" | "my-posts" for the user's own posts, "liked" |
+// "my-liked" for posts the user reacted to with a like).
+func (s *Service) ListPosts(filter, category, currentUserID string) ([]Post, error) {
+	switch filter {
+	case "my-posts":
+		filter = "created"
+	case "my-liked":
+		filter = "liked"
 	}
-	if (filter == "created" || filter == "liked") && currentUserID == "" {
-		httputil.WriteError(w, http.StatusUnauthorized, "authentication required for this filter")
-		return
+
+	if filter == "created" || filter == "liked" {
+		if currentUserID == "" {
+			return nil, ErrUnauthorized
+		}
 	}
 
 	query := `
@@ -175,8 +185,7 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -184,33 +193,64 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p Post
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Username, &p.Title, &p.Content, &p.CreatedAt); err != nil {
-			httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-			return
+			return nil, err
 		}
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
+		return nil, err
 	}
 
 	for i := range result {
-		s.attachCategories(&result[i])
-		s.attachReactionCounts(&result[i])
+		s.attachAll(&result[i], currentUserID)
+	}
+	return result, nil
+}
+
+// List handles GET /api/posts with optional ?category= and ?filter= params.
+func (s *Service) List(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	category := strings.TrimSpace(q.Get("category"))
+	filter := strings.TrimSpace(q.Get("filter"))
+
+	var currentUserID string
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		currentUserID = user.ID
 	}
 
+	result, err := s.ListPosts(filter, category, currentUserID)
+	if err != nil {
+		httputil.WriteError(w, http.StatusUnauthorized, "authentication required for this filter")
+		return
+	}
 	httputil.WriteJSON(w, http.StatusOK, result)
 }
 
 //Get single post
 
-func (s *Service) Get(w http.ResponseWriter, r *http.Request, id string) {
+// GetPost fetches one post with all attachments, or sql.ErrNoRows if absent.
+func (s *Service) GetPost(id, currentUserID string) (*Post, error) {
 	var p Post
 	err := s.DB.QueryRow(`
 		SELECT p.id, p.user_id, u.username, p.title, p.content, p.created_at
 		FROM posts p JOIN users u ON u.id = p.user_id
 		WHERE p.id = ?`, id,
 	).Scan(&p.ID, &p.UserID, &p.Username, &p.Title, &p.Content, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	s.attachAll(&p, currentUserID)
+	return &p, nil
+}
+
+// Get handles GET /api/posts/{id}.
+func (s *Service) Get(w http.ResponseWriter, r *http.Request, id string) {
+	var currentUserID string
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		currentUserID = user.ID
+	}
+
+	p, err := s.GetPost(id, currentUserID)
 	if err == sql.ErrNoRows {
 		httputil.WriteError(w, http.StatusNotFound, "post not found")
 		return
@@ -219,12 +259,20 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, id string) {
 		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	s.attachCategories(&p)
-	s.attachReactionCounts(&p)
 	httputil.WriteJSON(w, http.StatusOK, p)
 }
 
 // ---------- helpers ----------
+
+// attachAll populates every computed field on a post.
+func (s *Service) attachAll(p *Post, currentUserID string) {
+	s.attachCategories(p)
+	s.attachReactionCounts(p)
+	s.attachUserReaction(p, currentUserID)
+	s.attachCommentCount(p)
+	p.Snippet = snippet(p.Content, 200)
+	p.CreatedAtHuman = humanTime(p.CreatedAt)
+}
 
 func (s *Service) attachCategories(p *Post) {
 	rows, err := s.DB.Query(`
@@ -248,4 +296,77 @@ func (s *Service) attachCategories(p *Post) {
 func (s *Service) attachReactionCounts(p *Post) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE post_id = ? AND type = 'like'`, p.ID).Scan(&p.Likes)
 	s.DB.QueryRow(`SELECT COUNT(*) FROM reactions WHERE post_id = ? AND type = 'dislike'`, p.ID).Scan(&p.Dislikes)
+}
+
+func (s *Service) attachUserReaction(p *Post, currentUserID string) {
+	if currentUserID == "" {
+		return
+	}
+	var reaction sql.NullString
+	if err := s.DB.QueryRow(
+		`SELECT type FROM reactions WHERE user_id = ? AND post_id = ?`, currentUserID, p.ID,
+	).Scan(&reaction); err == nil {
+		p.UserReaction = reaction.String
+	}
+}
+
+func (s *Service) attachCommentCount(p *Post) {
+	s.DB.QueryRow(`SELECT COUNT(*) FROM comments WHERE post_id = ?`, p.ID).Scan(&p.CommentCount)
+}
+
+// snippet returns the first n runes of content, with an ellipsis if truncated.
+func snippet(content string, n int) string {
+	runes := []rune(strings.TrimSpace(content))
+	if len(runes) <= n {
+		return string(runes)
+	}
+	return strings.TrimSpace(string(runes[:n])) + "…"
+}
+
+// humanTime renders a timestamp as a coarse relative time.
+func humanTime(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return plural(int(d.Minutes()), "minute") + " ago"
+	case d < 24*time.Hour:
+		return plural(int(d.Hours()), "hour") + " ago"
+	case d < 7*24*time.Hour:
+		return plural(int(d.Hours()/24), "day") + " ago"
+	case d < 30*24*time.Hour:
+		return plural(int(d.Hours()/24/7), "week") + " ago"
+	default:
+		return t.Format("Jan 2, 2006")
+	}
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return itoa(n) + " " + unit + "s"
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var b [20]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		b[i] = '-'
+	}
+	return string(b[i:])
 }
