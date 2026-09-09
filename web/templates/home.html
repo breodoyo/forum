@@ -1,34 +1,38 @@
-{{define "title"}}{{if .ActiveCategoryName}}{{.ActiveCategoryName}} · {{end}}Forum{{end}}
+{{define "title"}}Forum{{end}}
 
 {{define "content"}}
-<div class="feed-header">
-  <h1>{{if .ActiveCategoryName}}{{.ActiveCategoryName}}{{else}}All posts{{end}}</h1>
-  {{if .User}}
-    <a href="/posts/new" class="btn-accent">New post</a>
+<div class="posts-list">
+  {{range .Posts}}
+    <article class="post-card">
+      <div class="post-vote-col">
+        <div class="reaction-bar vote-wrapper" data-target-type="post" data-target-id="{{.ID}}">
+          <button type="button" class="react-btn vote-btn vote-up {{if eq .UserReaction "like"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="like">
+            ▲ <span class="like-count">{{.Likes}}</span>
+          </button>
+          <button type="button" class="react-btn vote-btn vote-down {{if eq .UserReaction "dislike"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="dislike">
+            ▼ <span class="dislike-count">{{.Dislikes}}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="post-content-col">
+        <div class="post-meta">
+          <span>by {{.Username}}</span> · <time>{{.CreatedAtHuman}}</time>
+          <div class="post-tags-list">
+            {{range .Categories}}
+              <a class="badge-tag" href="/?category={{.}}">{{.}}</a>
+            {{end}}
+          </div>
+        </div>
+        <h2 class="post-title"><a href="/post/{{.ID}}">{{.Title}}</a></h2>
+        <p class="post-snippet">{{.Snippet}}</p>
+        <div class="post-footer">
+          <a href="/post/{{.ID}}" class="comment-count-badge">💬 {{.CommentCount}} comments</a>
+        </div>
+      </div>
+    </article>
+  {{else}}
+    <p class="empty-state">No posts yet — be the first to start a discussion.</p>
   {{end}}
 </div>
-
-{{if not .Posts}}
-  <p class="empty-state">
-    No posts yet.
-    {{if .User}}<a href="/posts/new">Start the first thread</a>.{{else}}<a href="/login">Log in</a> to start one.{{end}}
-  </p>
-{{else}}
-  <ul class="post-list">
-    {{range .Posts}}
-      <li class="post-card">
-        <h2><a href="/posts/{{.ID}}">{{.Title}}</a></h2>
-        <p class="post-meta">
-          by {{.Author.Username}} · <a href="/?category={{.Category.ID}}">{{.Category.Name}}</a> · {{.CreatedAt}}
-        </p>
-        <p class="post-excerpt">{{.Excerpt}}</p>
-        <div class="post-footer">
-          <span class="vote-count">▲ {{.LikeCount}}</span>
-          <span class="vote-count">▼ {{.DislikeCount}}</span>
-          <span class="comment-count">💬 {{.CommentCount}}</span>
-        </div>
-      </li>
-    {{end}}
-  </ul>
-{{end}}
 {{end}}

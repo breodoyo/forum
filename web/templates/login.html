@@ -1,0 +1,20 @@
+{{define "title"}}Log in · Forum{{end}}
+
+{{define "content"}}
+<section class="form-card auth-card">
+  <h1>Log in</h1>
+  <form id="login-form">
+    <div class="form-group">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" name="email" required>
+    </div>
+    <div class="form-group">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" name="password" required>
+    </div>
+    <p class="form-error" hidden></p>
+    <button type="submit" class="btn btn-primary">Log in</button>
+  </form>
+  <p class="auth-alt">No account yet? <a href="/register">Register</a></p>
+</section>
+{{end}}

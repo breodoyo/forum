@@ -1,0 +1,33 @@
+{{define "title"}}New Post · Forum{{end}}
+
+{{define "content"}}
+<section class="form-card">
+  <h1>Create a new post</h1>
+  <form id="new-post-form">
+    <div class="form-group">
+      <label for="post-title">Title</label>
+      <input type="text" id="post-title" name="title" required maxlength="200">
+    </div>
+
+    <div class="form-group">
+      <label for="post-body">Body</label>
+      <textarea id="post-body" name="body" rows="8" required></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Categories <small>(choose at least one)</small></label>
+      <div class="category-checklist">
+        {{range .Categories}}
+          <label class="category-check">
+            <input type="checkbox" name="categories" value="{{.Name}}">
+            <span>{{.Name}}</span>
+          </label>
+        {{end}}
+      </div>
+    </div>
+
+    <p id="new-post-error" class="form-error" hidden></p>
+    <button type="submit" class="btn btn-primary">Publish post</button>
+  </form>
+</section>
+{{end}}

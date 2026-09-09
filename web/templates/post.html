@@ -4,16 +4,21 @@
 <article class="post-detail" data-post-id="{{.Post.ID}}">
   <h1>{{.Post.Title}}</h1>
   <p class="post-meta">
-    by {{.Post.Author.Username}} · <a href="/?category={{.Post.Category.ID}}">{{.Post.Category.Name}}</a> · {{.Post.CreatedAt}}
+    by {{.Post.Username}} · <time>{{.Post.CreatedAtHuman}}</time>
   </p>
-  <div class="post-body">{{.Post.Body}}</div>
+  <div class="post-tags-list">
+    {{range .Post.Categories}}
+      <a class="badge-tag" href="/?category={{.}}">{{.}}</a>
+    {{end}}
+  </div>
+  <div class="post-body">{{.Post.Content}}</div>
 
   <div class="reaction-bar" data-target-type="post" data-target-id="{{.Post.ID}}">
-    <button class="react-btn" data-reaction="like" {{if not $.User}}disabled{{end}}>
-      ▲ <span class="like-count">{{.Post.LikeCount}}</span>
+    <button type="button" class="react-btn {{if eq .Post.UserReaction "like"}}active{{end}}" {{if not .User}}disabled{{end}} data-reaction="like">
+      ▲ <span class="like-count">{{.Post.Likes}}</span>
     </button>
-    <button class="react-btn" data-reaction="dislike" {{if not $.User}}disabled{{end}}>
-      ▼ <span class="dislike-count">{{.Post.DislikeCount}}</span>
+    <button type="button" class="react-btn {{if eq .Post.UserReaction "dislike"}}active{{end}}" {{if not .User}}disabled{{end}} data-reaction="dislike">
+      ▼ <span class="dislike-count">{{.Post.Dislikes}}</span>
     </button>
   </div>
 </article>
@@ -27,7 +32,7 @@
         <label for="comment-body">Add a comment</label>
         <textarea id="comment-body" name="body" rows="3" required></textarea>
       </div>
-      <button type="submit" class="btn-accent">Post comment</button>
+      <button type="submit" class="btn btn-primary">Post comment</button>
     </form>
   {{else}}
     <p class="empty-state"><a href="/login">Log in</a> to join the discussion.</p>
@@ -36,14 +41,14 @@
   <ul class="comment-list">
     {{range .Comments}}
       <li class="comment" data-comment-id="{{.ID}}">
-        <p class="comment-meta">{{.Author.Username}} · {{.CreatedAt}}</p>
-        <p class="comment-body">{{.Body}}</p>
+        <p class="comment-meta">{{.Username}} · {{.CreatedAt}}</p>
+        <p class="comment-body">{{.Content}}</p>
         <div class="reaction-bar" data-target-type="comment" data-target-id="{{.ID}}">
-          <button class="react-btn" data-reaction="like" {{if not $.User}}disabled{{end}}>
-            ▲ <span class="like-count">{{.LikeCount}}</span>
+          <button type="button" class="react-btn {{if eq .UserReaction "like"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="like">
+            ▲ <span class="like-count">{{.Likes}}</span>
           </button>
-          <button class="react-btn" data-reaction="dislike" {{if not $.User}}disabled{{end}}>
-            ▼ <span class="dislike-count">{{.DislikeCount}}</span>
+          <button type="button" class="react-btn {{if eq .UserReaction "dislike"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="dislike">
+            ▼ <span class="dislike-count">{{.Dislikes}}</span>
           </button>
         </div>
       </li>

@@ -1,19 +1,49 @@
 {{define "sidebar"}}
-<aside class="sidebar">
-  <h2>Categories</h2>
-  <ul class="sidebar-list">
-    <li><a href="/" class="{{if not .ActiveCategory}}active{{end}}">All posts</a></li>
-    {{range .Categories}}
-      <li><a href="/?category={{.ID}}" class="{{if eq $.ActiveCategory .ID}}active{{end}}">{{.Name}}</a></li>
-    {{end}}
-  </ul>
-
-  {{if .User}}
-    <h2 style="margin-top:1.5rem;">My posts</h2>
-    <ul class="sidebar-list">
-      <li><a href="/?filter=created">Created by me</a></li>
-      <li><a href="/?filter=liked">Liked posts</a></li>
+<aside class="forum-sidebar">
+  <div class="sidebar-section">
+    <h3 class="sidebar-heading">Navigation</h3>
+    <ul class="nav-list">
+      <li>
+        <a href="/" class="nav-item {{if eq .ActiveFilter "all"}}active{{end}}">
+          <span>All Discussions</span>
+        </a>
+      </li>
+      {{if .User}}
+        <li>
+          <a href="/?filter=my-posts" class="nav-item {{if eq .ActiveFilter "my-posts"}}active{{end}}">
+            <span>My Created Posts</span>
+          </a>
+        </li>
+        <li>
+          <a href="/?filter=my-liked" class="nav-item {{if eq .ActiveFilter "my-liked"}}active{{end}}">
+            <span>My Liked Posts</span>
+          </a>
+        </li>
+      {{else}}
+        <li class="nav-item-disabled" title="Log in to view your posts">
+          <span class="nav-disabled-label">My Posts / Liked</span>
+          <a href="/login" class="nav-sublink">Log in</a>
+        </li>
+      {{end}}
     </ul>
-  {{end}}
+  </div>
+
+  <div class="sidebar-section">
+    <h3 class="sidebar-heading">Categories</h3>
+    <ul class="category-list">
+      {{if .Categories}}
+        {{range .Categories}}
+          <li>
+            <a href="/?category={{.Name}}" class="category-item {{if eq $.ActiveCategory .Name}}active{{end}}">
+              <span class="category-dot"></span>
+              <span class="category-name">{{.Name}}</span>
+            </a>
+          </li>
+        {{end}}
+      {{else}}
+        <li class="nav-item-disabled"><span class="nav-disabled-label">No categories yet</span></li>
+      {{end}}
+    </ul>
+  </div>
 </aside>
 {{end}}
