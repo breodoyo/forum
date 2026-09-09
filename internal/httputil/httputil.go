@@ -31,3 +31,11 @@ func DecodeJSON(r *http.Request, v any) error {
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
 }
+
+func WriteJSON(w http.ResponseWriter, status int, v any) {
+	JSON(w, status, v)
+}
+
+func WriteError(w http.ResponseWriter, status int, message string) {
+	Error(w, status, message)
+}
