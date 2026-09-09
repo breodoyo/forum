@@ -106,6 +106,12 @@ func (s *Service) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Registering logs the user in: create a session just like Login does.
+	if err := s.createSession(w, id.String()); err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
 	httputil.WriteJSON(w, http.StatusCreated, map[string]string{
 		"id":       id.String(),
 		"email":    req.Email,
@@ -146,34 +152,10 @@ func (s *Service) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := uuid.NewV4()
-	if err != nil {
+	if err := s.createSession(w, id); err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	expires := time.Now().Add(sessionDuration)
-
-	// inserting keeps a single logged-in session per account.
-	if _, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-	if _, err := s.DB.Exec(
-		`INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)`,
-		sessionID.String(), id, expires,
-	); err != nil {
-		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    sessionID.String(),
-		Path:     "/",
-		Expires:  expires,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
 
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{
 		"id":       id,
@@ -197,6 +179,37 @@ func (s *Service) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 //Session lookup & middleware
+
+// createSession inserts a fresh session for the user, deletes any previous
+// sessions (keeping a single logged-in session per account), and sets the
+// session cookie on the response.
+func (s *Service) createSession(w http.ResponseWriter, userID string) error {
+	sessionID, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
+	expires := time.Now().Add(sessionDuration)
+
+	if _, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := s.DB.Exec(
+		`INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)`,
+		sessionID.String(), userID, expires,
+	); err != nil {
+		return err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    sessionID.String(),
+		Path:     "/",
+		Expires:  expires,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	return nil
+}
 
 func (s *Service) userFromRequest(r *http.Request) (*User, error) {
 	cookie, err := r.Cookie(sessionCookieName)
