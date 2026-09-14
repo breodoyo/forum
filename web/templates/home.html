@@ -6,11 +6,11 @@
     <article class="post-card">
       <div class="post-vote-col">
         <div class="reaction-bar vote-wrapper" data-target-type="post" data-target-id="{{.ID}}">
-          <button type="button" class="react-btn vote-btn vote-up {{if eq .UserReaction "like"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="like">
-            ▲ <span class="like-count">{{.Likes}}</span>
+          <button type="button" class="react-btn vote-btn vote-up {{if eq .UserReaction "like"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="like" aria-label="Upvote">
+            <span class="arrow">▲</span> <span class="like-count">{{.Likes}}</span>
           </button>
-          <button type="button" class="react-btn vote-btn vote-down {{if eq .UserReaction "dislike"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="dislike">
-            ▼ <span class="dislike-count">{{.Dislikes}}</span>
+          <button type="button" class="react-btn vote-btn vote-down {{if eq .UserReaction "dislike"}}active{{end}}" {{if not $.User}}disabled{{end}} data-reaction="dislike" aria-label="Downvote">
+            <span class="arrow">▼</span> <span class="dislike-count">{{.Dislikes}}</span>
           </button>
         </div>
       </div>
@@ -18,16 +18,16 @@
       <div class="post-content-col">
         <div class="post-meta">
           <span>by {{.Username}}</span> · <time>{{.CreatedAtHuman}}</time>
+        </div>
+        <h2 class="post-title"><a href="/post/{{.ID}}">{{.Title}}</a></h2>
+        <p class="post-snippet">{{.Snippet}}</p>
+        <div class="post-footer">
           <div class="post-tags-list">
             {{range .Categories}}
               <a class="badge-tag" href="/?category={{.}}">{{.}}</a>
             {{end}}
           </div>
-        </div>
-        <h2 class="post-title"><a href="/post/{{.ID}}">{{.Title}}</a></h2>
-        <p class="post-snippet">{{.Snippet}}</p>
-        <div class="post-footer">
-          <a href="/post/{{.ID}}" class="comment-count-badge">💬 {{.CommentCount}} comments</a>
+          <a href="/post/{{.ID}}" class="comment-count-badge">💬 <span>{{.CommentCount}}</span> comments</a>
         </div>
       </div>
     </article>
