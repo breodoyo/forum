@@ -4,9 +4,12 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"forum/internal/auth"
 	"forum/internal/categories"
@@ -30,30 +33,116 @@ func main() {
 	}
 	defer conn.Close()
 
-	if err := render.Load(); err != nil {
+	if err := render.Load("web/templates"); err != nil {
 		log.Fatalf("loading templates: %v", err)
 	}
 
-	authSvc := auth.NewService(conn)
+	authSvc := auth.New(conn)
 	catSvc := categories.NewService(conn)
-	postSvc := posts.NewService(conn)
-	commentSvc := comments.NewService(conn)
+	postSvc := posts.New(conn)
+	commentSvc := comments.New(conn)
 	reactSvc := reactions.NewService(conn)
+
+	// renderPage renders a page after attaching the template data every
+	// layout partial needs (the current user and the category list for
+	// the sidebar).
+	renderPage := func(w http.ResponseWriter, r *http.Request, name string, data map[string]any) {
+		if data == nil {
+			data = map[string]any{}
+		}
+		if _, ok := data["User"]; !ok {
+			if user, found := auth.UserFromContext(r.Context()); found {
+				data["User"] = user
+			}
+		}
+		if _, ok := data["Categories"]; !ok {
+			if cats, err := catSvc.ListData(); err == nil {
+				data["Categories"] = cats
+			}
+		}
+		render.Page(w, name, data)
+	}
 
 	mux := http.NewServeMux()
 
 	// -- pages (server-rendered HTML) --
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		render.Page(w, "home", nil)
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		var currentUserID string
+		if user, ok := auth.UserFromContext(r.Context()); ok {
+			currentUserID = user.ID
+		}
+
+		q := r.URL.Query()
+		category := strings.TrimSpace(q.Get("category"))
+		filter := strings.TrimSpace(q.Get("filter"))
+
+		postsList, err := postSvc.ListPosts(filter, category, currentUserID)
+		if errors.Is(err, posts.ErrUnauthorized) {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to load posts", http.StatusInternalServerError)
+			return
+		}
+
+		cats, err := catSvc.ListData()
+		if err != nil {
+			http.Error(w, "failed to load categories", http.StatusInternalServerError)
+			return
+		}
+
+		activeFilter := filter
+		if filter != "my-posts" && filter != "my-liked" {
+			activeFilter = "all"
+		}
+		renderPage(w, r, "home.html", map[string]any{
+			"Posts":          postsList,
+			"Categories":     cats,
+			"ActiveFilter":   activeFilter,
+			"ActiveCategory": category,
+		})
 	})
 	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
-		render.Page(w, "login", nil)
+		renderPage(w, r, "login.html", nil)
 	})
 	mux.HandleFunc("GET /register", func(w http.ResponseWriter, r *http.Request) {
-		render.Page(w, "register", nil)
+		renderPage(w, r, "register.html", nil)
 	})
-	mux.HandleFunc("GET /posts/{id}", func(w http.ResponseWriter, r *http.Request) {
-		render.Page(w, "post", nil)
+	mux.HandleFunc("GET /post/new", func(w http.ResponseWriter, r *http.Request) {
+		cats, err := catSvc.ListData()
+		if err != nil {
+			http.Error(w, "failed to load categories", http.StatusInternalServerError)
+			return
+		}
+		renderPage(w, r, "new-post.html", map[string]any{"Categories": cats})
+	})
+	mux.HandleFunc("GET /post/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var currentUserID string
+		if user, ok := auth.UserFromContext(r.Context()); ok {
+			currentUserID = user.ID
+		}
+
+		p, err := postSvc.GetPost(r.PathValue("id"), currentUserID)
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to load post", http.StatusInternalServerError)
+			return
+		}
+
+		commentsList, err := commentSvc.ListByPostData(p.ID, currentUserID)
+		if err != nil {
+			http.Error(w, "failed to load comments", http.StatusInternalServerError)
+			return
+		}
+
+		renderPage(w, r, "post.html", map[string]any{
+			"Post":     p,
+			"Comments": commentsList,
+		})
 	})
 
 	// -- static assets --
@@ -63,7 +152,6 @@ func main() {
 	mux.HandleFunc("POST /api/register", authSvc.Register)
 	mux.HandleFunc("POST /api/login", authSvc.Login)
 	mux.HandleFunc("POST /api/logout", authSvc.Logout)
-	mux.HandleFunc("GET /api/me", authSvc.Me)
 
 	// -- categories (public) --
 	mux.HandleFunc("GET /api/categories", catSvc.List)
@@ -73,29 +161,25 @@ func main() {
 	mux.HandleFunc("GET /api/posts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		postSvc.Get(w, r, r.PathValue("id"))
 	})
-	mux.HandleFunc("POST /api/posts", auth.RequireAuth(postSvc.Create))
+	mux.HandleFunc("POST /api/posts", authSvc.RequireAuth(postSvc.Create))
 
 	// -- comments (nested under a post) --
 	mux.HandleFunc("GET /api/posts/{id}/comments", func(w http.ResponseWriter, r *http.Request) {
-		commentSvc.List(w, r, r.PathValue("id"))
+		commentSvc.ListByPost(w, r, r.PathValue("id"))
 	})
-	mux.HandleFunc("POST /api/posts/{id}/comments", auth.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/posts/{id}/comments", authSvc.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
 		commentSvc.Create(w, r, r.PathValue("id"))
 	}))
 
 	// -- reactions --
-	mux.HandleFunc("POST /api/posts/{id}/react", auth.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/posts/{id}/react", authSvc.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
 		reactSvc.ReactToPost(w, r, r.PathValue("id"))
 	}))
-	mux.HandleFunc("POST /api/comments/{id}/react", auth.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/comments/{id}/react", authSvc.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
 		reactSvc.ReactToComment(w, r, r.PathValue("id"))
 	}))
 
-	// Catch-all for unmatched /api/* routes, so clients get a JSON 404
-	// instead of falling through to the page/static handlers. Methods
-	// must be listed explicitly: an unqualified "/api/" pattern is
-	// ambiguous against "GET /" (Go's ServeMux can't tell which is
-	// more specific for a GET request) and panics at startup.
+	// Catch-all for unmatched /api/* routes
 	apiNotFound := func(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, http.StatusNotFound, "not found")
 	}
@@ -104,7 +188,7 @@ func main() {
 	mux.HandleFunc("PUT /api/", apiNotFound)
 	mux.HandleFunc("DELETE /api/", apiNotFound)
 
-	handler := authSvc.Middleware(mux)
+	handler := authSvc.OptionalAuth(http.HandlerFunc(mux.ServeHTTP))
 
 	addr := ":" + getenv("PORT", "8080")
 	log.Printf("forum listening on %s (db: %s)", addr, dbPath)
