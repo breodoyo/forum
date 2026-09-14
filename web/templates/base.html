@@ -5,17 +5,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{block "title" .}}Forum{{end}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   {{template "header" .}}
+
   <div class="layout">
     {{template "sidebar" .}}
     <main class="content">
       {{block "content" .}}{{end}}
     </main>
   </div>
+
   {{template "footer" .}}
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
   <script src="/static/js/api.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
