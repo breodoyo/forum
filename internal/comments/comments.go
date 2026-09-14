@@ -80,7 +80,19 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request, postID string) 
 		return
 	}
 
-	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"id": id.String()})
+	var created Comment
+	if err := s.DB.QueryRow(`
+		SELECT c.id, c.post_id, c.user_id, u.username, c.content, c.created_at
+		FROM comments c JOIN users u ON u.id = c.user_id
+		WHERE c.id = ?`, id.String(),
+	).Scan(&created.ID, &created.PostID, &created.UserID, &created.Username, &created.Content, &created.CreatedAt); err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	created.CreatedAtHuman = humanTime(created.CreatedAt)
+	s.hydrate(&created, user.ID)
+
+	httputil.WriteJSON(w, http.StatusCreated, created)
 }
 
 // ListByPostData returns every comment on a post, hydrated with reaction
