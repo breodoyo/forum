@@ -2,6 +2,7 @@ package comments
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ type Comment struct {
 	Username     string    `json:"user"`
 	Content      string    `json:"body"`
 	CreatedAt    time.Time `json:"created_at"`
+	CreatedAtHuman string  `json:"created_at_human,omitempty"`
 	Likes        int       `json:"likes"`
 	Dislikes     int       `json:"dislikes"`
 	UserReaction string    `json:"user_reaction"` // "like", "dislike", or ""
@@ -100,6 +102,7 @@ func (s *Service) ListByPostData(postID, currentUserID string) ([]Comment, error
 		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Username, &c.Content, &c.CreatedAt); err != nil {
 			return nil, err
 		}
+		c.CreatedAtHuman = humanTime(c.CreatedAt)
 		result = append(result, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -136,8 +139,34 @@ func (s *Service) hydrate(c *Comment, currentUserID string) {
 	}
 	var reaction sql.NullString
 	if err := s.DB.QueryRow(
-		`SELECT type FROM reactions WHERE user_id = ? AND comment_id = ?`, currentUserID, c.ID,
-	).Scan(&reaction); err == nil {
-		c.UserReaction = reaction.String
+			`SELECT type FROM reactions WHERE user_id = ? AND comment_id = ?`, currentUserID, c.ID,
+		).Scan(&reaction); err == nil {
+			c.UserReaction = reaction.String
+		}
+}
+
+// humanTime renders a timestamp as a coarse relative time (same format as posts).
+func humanTime(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return plural(int(d.Minutes()), "minute") + " ago"
+	case d < 24*time.Hour:
+		return plural(int(d.Hours()), "hour") + " ago"
+	case d < 7*24*time.Hour:
+		return plural(int(d.Hours()/24), "day") + " ago"
+	case d < 30*24*time.Hour:
+		return plural(int(d.Hours()/24/7), "week") + " ago"
+	default:
+		return t.Format("Jan 2, 2006")
 	}
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
