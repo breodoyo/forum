@@ -1,3 +1,23 @@
+/* ---- Toasts (inline notifications instead of alert()) ---- */
+
+function showToast(message, variant = 'error') {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) {
+    alert(message); // graceful fallback if the stack is missing
+    return;
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast${variant === 'info' ? ' toast-info' : ''}`;
+  toast.textContent = message;
+  stack.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 200ms ease';
+    setTimeout(() => toast.remove(), 220);
+  }, 3500);
+}
+
+/* ---- Reactions: posts + comments ---- */
 
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.react-btn');
@@ -28,11 +48,13 @@ document.addEventListener('click', async (e) => {
       if (active) active.classList.add('active');
     }
   } catch (err) {
-    alert(err.message || 'Could not save your reaction. Please try again.');
+    showToast(err.message || 'Could not save your reaction. Please try again.');
   } finally {
     btn.disabled = false;
   }
 });
+
+/* ---- Form submissions ---- */
 
 document.addEventListener('submit', async (e) => {
   const commentForm = e.target.closest('.comment-form');
@@ -81,7 +103,7 @@ function showFormError(form, message) {
     errorEl.textContent = message;
     errorEl.hidden = false;
   } else {
-    alert(message);
+    showToast(message);
   }
 }
 
@@ -132,7 +154,7 @@ async function handleCommentSubmit(form) {
     appendComment(comment);
     textarea.value = '';
   } catch (err) {
-    alert(err.message || 'Could not post your comment. Please try again.');
+    showToast(err.message || 'Could not post your comment. Please try again.');
   } finally {
     submitBtn.disabled = false;
   }
@@ -177,6 +199,8 @@ async function handleNewPostSubmit(form) {
   }
 }
 
+/* ---- Comments: append newly posted comment ---- */
+
 function appendComment(comment) {
   const list = document.querySelector('.comment-list');
   if (!list) return;
@@ -189,13 +213,17 @@ function appendComment(comment) {
   li.className = 'comment';
   li.dataset.commentId = comment.id;
 
-  const when = comment.created_at ? new Date(comment.created_at).toLocaleString() : 'just now';
+  const when = comment.created_at_human || (comment.created_at ? new Date(comment.created_at).toLocaleString() : 'just now');
   li.innerHTML = `
     <p class="comment-meta">${escapeHtml(comment.user ?? 'You')} · ${escapeHtml(when)}</p>
     <p class="comment-body">${escapeHtml(comment.body)}</p>
     <div class="reaction-bar" data-target-type="comment" data-target-id="${escapeHtml(comment.id)}">
-      <button class="react-btn" data-reaction="like">▲ <span class="like-count">${comment.likes ?? 0}</span></button>
-      <button class="react-btn" data-reaction="dislike">▼ <span class="dislike-count">${comment.dislikes ?? 0}</span></button>
+      <button type="button" class="react-btn vote-up" data-reaction="like" aria-label="Upvote comment">
+        <span class="arrow">▲</span> <span class="like-count">${comment.likes ?? 0}</span>
+      </button>
+      <button type="button" class="react-btn vote-down" data-reaction="dislike" aria-label="Downvote comment">
+        <span class="arrow">▼</span> <span class="dislike-count">${comment.dislikes ?? 0}</span>
+      </button>
     </div>
   `;
   list.appendChild(li);
@@ -206,3 +234,48 @@ function escapeHtml(str) {
   div.textContent = String(str);
   return div.innerHTML;
 }
+
+/* ---- Sidebar count badges (best-effort hydration) ---- */
+
+(async function hydrateSidebarCounts() {
+  if (!document.querySelector('.count-badge')) return;
+
+  // Category counts come from the public posts list.
+  try {
+    const posts = await api.request('/api/posts');
+    if (Array.isArray(posts)) {
+      const allBadge = document.querySelector('.count-badge[data-count="all"]');
+      if (allBadge) allBadge.textContent = posts.length;
+
+      const byCategory = {};
+      for (const p of posts) {
+        for (const c of p.categories || []) {
+          byCategory[c] = (byCategory[c] || 0) + 1;
+        }
+      }
+      document.querySelectorAll('.count-badge[data-category-count]').forEach((badge) => {
+        const name = badge.dataset.categoryCount;
+        badge.textContent = byCategory[name] ?? 0;
+      });
+    }
+  } catch (_) {
+    // Counts are decorative — fail silently.
+  }
+
+  // Personal counts require auth; skip quietly for guests.
+  try {
+    const mine = await api.request('/api/posts?filter=my-posts');
+    if (Array.isArray(mine)) {
+      const badge = document.querySelector('.count-badge[data-count="my-posts"]');
+      if (badge) badge.textContent = mine.length;
+    }
+  } catch (_) { /* guest — ignore */ }
+
+  try {
+    const liked = await api.request('/api/posts?filter=my-liked');
+    if (Array.isArray(liked)) {
+      const badge = document.querySelector('.count-badge[data-count="my-liked"]');
+      if (badge) badge.textContent = liked.length;
+    }
+  } catch (_) { /* guest — ignore */ }
+})();
