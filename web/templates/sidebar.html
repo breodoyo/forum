@@ -4,24 +4,33 @@
     <h3 class="sidebar-heading">Navigation</h3>
     <ul class="nav-list">
       <li>
-        <a href="/" class="nav-item {{if eq .ActiveFilter "all"}}active{{end}}">
+        <a href="/" class="nav-item {{if and (eq .ActiveFilter "all") (not .ActiveCategory)}}active{{end}}">
           <span>All Discussions</span>
+          <span class="count-badge" data-count="all">–</span>
         </a>
       </li>
       {{if .User}}
         <li>
           <a href="/?filter=my-posts" class="nav-item {{if eq .ActiveFilter "my-posts"}}active{{end}}">
             <span>My Created Posts</span>
+            <span class="count-badge" data-count="my-posts">–</span>
           </a>
         </li>
         <li>
           <a href="/?filter=my-liked" class="nav-item {{if eq .ActiveFilter "my-liked"}}active{{end}}">
             <span>My Liked Posts</span>
+            <span class="count-badge" data-count="my-liked">–</span>
           </a>
         </li>
       {{else}}
         <li class="nav-item-disabled" title="Log in to view your posts">
-          <span class="nav-disabled-label">My Posts / Liked</span>
+          <span class="nav-disabled-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            My Posts / Liked
+          </span>
           <a href="/login" class="nav-sublink">Log in</a>
         </li>
       {{end}}
@@ -37,6 +46,7 @@
             <a href="/?category={{.Name}}" class="category-item {{if eq $.ActiveCategory .Name}}active{{end}}">
               <span class="category-dot"></span>
               <span class="category-name">{{.Name}}</span>
+              <span class="count-badge" data-category-count="{{.Name}}">–</span>
             </a>
           </li>
         {{end}}
