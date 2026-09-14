@@ -3,21 +3,23 @@
 {{define "content"}}
 <section class="form-card auth-card">
   <h1>Create an account</h1>
-  <form id="register-form">
+  <p class="form-hint">Join the community — it takes less than a minute.</p>
+
+  <form id="register-form" novalidate>
     <div class="form-group">
       <label for="register-email">Email</label>
-      <input type="email" id="register-email" name="email" required>
+      <input type="email" id="register-email" name="email" required autocomplete="email" placeholder="you@example.com">
     </div>
     <div class="form-group">
       <label for="register-username">Username</label>
-      <input type="text" id="register-username" name="username" required>
+      <input type="text" id="register-username" name="username" required minlength="3" maxlength="30" autocomplete="username" placeholder="your-handle">
     </div>
     <div class="form-group">
       <label for="register-password">Password <small>(min 8 characters)</small></label>
-      <input type="password" id="register-password" name="password" required minlength="8">
+      <input type="password" id="register-password" name="password" required minlength="8" autocomplete="new-password" placeholder="••••••••">
     </div>
-    <p class="form-error" hidden></p>
-    <button type="submit" class="btn btn-primary">Register</button>
+    <p class="form-error" role="alert" hidden></p>
+    <button type="submit" class="btn btn-primary btn-block">Register</button>
   </form>
   <p class="auth-alt">Already have an account? <a href="/login">Log in</a></p>
 </section>
